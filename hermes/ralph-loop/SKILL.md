@@ -47,6 +47,44 @@ The orchestrator only checks `finite_incantatem` — the subagent declares when 
 
 **NOT for:** interactive UI (needs human eyes), brainstorming (use plain subagents), trivial single-file edits.
 
+## Engine Selection — Hermes vs Codex CLI
+
+The Ralph Loop works with two engines. Set `engine:` in the progress file frontmatter to choose.
+
+| Engine | Mechanism | Model | Cost |
+|--------|-----------|-------|------|
+| `hermes` (default) | `delegate_task` subagent | Your Hermes model (deepseek, minimax, kimi...) | Hermes token billing |
+| `codex` | `codex exec` CLI | OpenAI gpt-5.4 / gpt-5.5 | OpenAI/Codex subscription |
+
+### Codex Engine Mode
+
+When `engine: codex` is detected, **skip `delegate_task`** and drive codex CLI directly:
+
+```bash
+# Each round: inject the WORKFLOW_INSTRUCTIONS via stdin
+cd <project-dir>
+cat <<'DEVENDOF' | codex exec -c approval_policy=never -m gpt-5.4
+<WORKFLOW_INSTRUCTIONS with progress file path>
+</WORKFLOW_INSTRUCTIONS>
+DEVENDOF
+
+# After round completes: read progress file, check finite_incantatem
+# If false → spawn another round; if true → done
+```
+
+**Requirements:**
+- Must be inside a git repo (run `git init` if needed)
+- `-c approval_policy=never` (NOT `--approval-policy`)
+- Prompt piped via stdin (avoids shell escaping issues)
+
+**Full invocation reference:** See `references/codex-cli.md` for version, pitfalls, and model options.
+
+### Hermes Engine Mode (default)
+
+Standard `delegate_task` flow as described below. The complete WORKFLOW_INSTRUCTIONS are injected into the subagent's context.
+
+---
+
 ## The Process
 
 ### Phase 1: Setup — Create the Progress File
@@ -65,6 +103,7 @@ Write MAIN.md (the progress file with frontmatter):
 status: initial
 finite_incantatem: false
 short_title:
+engine: hermes
 ---
 
 # Overall Goal
@@ -90,9 +129,58 @@ Optionally, seed a KB README:
 
 ### Phase 2: The Loop — Spawn Rounds
 
-For each round (max 5 by default):
+For each round (max 5 by default). **Branch by engine:**
 
-#### Step 1: Spawn Work Subagent
+#### Engine: `codex` — codex exec CLI
+
+**Prerequisites check** (first round only):
+
+```bash
+# Ensure inside a git repo
+cd <project-dir> && git rev-parse --git-dir 2>/dev/null || git init
+
+# Verify codex is available
+which codex && codex --version
+```
+
+**Each round:** Pipe the WORKFLOW_INSTRUCTIONS to `codex exec`. This mirrors CodexPotter's architecture exactly — codex reads the progress file from disk, works through it, and updates it in-place.
+
+```bash
+cd <project-dir>
+cat <<'DEVENDOF' | codex exec -c approval_policy=never -m gpt-5.4
+
+Continue working according to the WORKFLOW_INSTRUCTIONS below.
+
+<WORKFLOW_INSTRUCTIONS>
+
+Run the workflow below to implement the overall goal recorded in the progress file.
+Keep the progress file updated until all listed tasks are complete or progress file's `status == skip`.
+
+- Progress file: {project}/MAIN.md
+- `{project}/` is intentionally gitignored — never commit anything under it.
+- Sections: Overall Goal, In Progress, Todo, Done
+- Progress file status in front matter: initial / open / skip
+
+# Phase: status == initial
+... (full WORKFLOW_INSTRUCTIONS — same as Hermes mode)
+# Phase: status == open
+...
+# When all tasks are done
+Mark progress file's `finite_incantatem` to true ONLY IF no file/code changes were made this round.
+...
+
+</WORKFLOW_INSTRUCTIONS>
+DEVENDOF
+```
+
+**Codex-specific notes:**
+- Use `-c approval_policy=never` (NOT `--approval-policy`)
+- Prompt via stdin (NOT as CLI argument — avoids shell escaping issues)
+- `-m gpt-5.4` is default; use `-m gpt-5.5` for stricter review rounds
+- Non-fatal errors: "rollout items" warning at end is safe to ignore
+- Full reference: load `references/codex-cli.md`
+
+#### Engine: `hermes` (default) — delegate_task
 
 ```python
 delegate_task(
@@ -268,9 +356,12 @@ ls .hermes/potter/2026-05-01_*/MAIN.md
 - Skip reading the progress file after each round
 - Modify code yourself between rounds (pollutes the clean-room model)
 - Run more than 5 rounds without user approval
-- Forget to inject the complete WORKFLOW_INSTRUCTIONS in the subagent context
+- Forget to inject the complete WORKFLOW_INSTRUCTIONS
 - Use for tasks requiring human UI judgment
-- Accept "close enough" — trust finite_incantatem as the sole done signal
+- Accept "close enough" — trust `finite_incantatem` as the sole done signal
+- **Codex mode:** pass `--approval-policy` to `codex exec` (use `-c approval_policy=never`)
+- **Codex mode:** run outside a git repo without `--skip-git-repo-check`
+- **Codex mode:** pass the prompt as a CLI argument with complex content (use stdin pipe)
 
 ## State Files
 
@@ -313,3 +404,8 @@ Files changed: src/query/engine.py, src/query/pipeline.py, tests/...
 - **Faster convergence**: Add "PREFER SIMPLICITY" to Overall Goal constraints to reduce over-engineering
 - **Stricter quality**: Add project-specific conventions to Overall Goal
 - **Different model**: Change the subagent's model by editing your Hermes config or model selection
+
+## References
+
+- `references/codex-cli.md` — Codex CLI invocation recipe, version details, pitfalls, and model options for the codex engine mode. Load when using `engine: codex`.
+

@@ -46,6 +46,7 @@ A Markdown file with YAML frontmatter that serves as the agent's durable memory:
 status: initial          # initial → open → skip
 finite_incantatem: false # set to true when truly done
 short_title:             # auto-generated summary
+engine: hermes           # hermes | codex
 ---
 
 # Overall Goal
@@ -102,6 +103,26 @@ Minimal. After each round:
 
 ---
 
+## Dual Engine — Hermes or Codex CLI
+
+The Ralph Loop supports two execution engines, selected via the `engine:` field in MAIN.md frontmatter:
+
+| Engine | Mechanism | Model | Use when |
+|--------|-----------|-------|----------|
+| `hermes` (default) | `delegate_task` subagent | Any Hermes model | You want to use your own models (deepseek, minimax, kimi...) |
+| `codex` | `codex exec` CLI (stdin pipe) | OpenAI gpt-5.4 / gpt-5.5 | You have a Codex subscription and want the original CodexPotter feel |
+
+**Codex engine** mirrors CodexPotter's architecture exactly — each round pipes the developer prompt to `codex exec`:
+
+```bash
+cat <<'DEVENDOF' | codex exec -c approval_policy=never -m gpt-5.4
+<WORKFLOW_INSTRUCTIONS with progress file path>
+</WORKFLOW_INSTRUCTIONS>
+DEVENDOF
+```
+
+Key details: `-c approval_policy=never` (not `--approval-policy`), prompt via stdin (not CLI argument), must be inside a git repo. Full reference: `hermes/ralph-loop/references/codex-cli.md`.
+
 ## Getting Started (Hermes Agent)
 
 ### Prerequisites
@@ -139,7 +160,8 @@ The agent will:
 
 - **More rounds:** Edit the max-round check for complex projects
 - **Faster convergence:** Add "PREFER SIMPLICITY" to your goal
-- **Different model:** The subagent uses your default Hermes model — change it in config
+- **Different model (Hermes):** Change your Hermes config or model selection
+- **Switch to Codex engine:** Set `engine: codex` in MAIN.md to use OpenAI Codex CLI for a round
 
 ---
 
