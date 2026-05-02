@@ -47,6 +47,7 @@ status: initial          # initial → open → skip
 finite_incantatem: false # set to true when truly done
 short_title:             # auto-generated summary
 engine: hermes           # hermes | codex
+codex_sandbox: workspace-write  # (codex only) readonly | workspace-write | danger-full-access
 ---
 
 # Overall Goal
@@ -115,13 +116,13 @@ The Ralph Loop supports two execution engines, selected via the `engine:` field 
 **Codex engine** mirrors CodexPotter's architecture exactly — each round pipes the developer prompt to `codex exec`:
 
 ```bash
-cat <<'DEVENDOF' | codex exec -c approval_policy=never -m gpt-5.4
+cat <<'DEVENDOF' | codex exec -c approval_policy=never -s workspace-write -m gpt-5.4
 <WORKFLOW_INSTRUCTIONS with progress file path>
 </WORKFLOW_INSTRUCTIONS>
 DEVENDOF
 ```
 
-Key details: `-c approval_policy=never` (not `--approval-policy`), prompt via stdin (not CLI argument), must be inside a git repo. Full reference: `hermes/ralph-loop/references/codex-cli.md`.
+Key details: `-c approval_policy=never` (not `--approval-policy`), `-s workspace-write` enables git clone→modify→push, prompt via stdin (not CLI argument), must be inside a git repo. Full reference: `hermes/ralph-loop/references/codex-cli.md`.
 
 ## Getting Started (Hermes Agent)
 

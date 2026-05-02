@@ -104,6 +104,7 @@ status: initial
 finite_incantatem: false
 short_title:
 engine: hermes
+codex_sandbox: workspace-write   # (codex engine only) readonly | workspace-write | danger-full-access
 ---
 
 # Overall Goal
@@ -147,7 +148,7 @@ which codex && codex --version
 
 ```bash
 cd <project-dir>
-cat <<'DEVENDOF' | codex exec -c approval_policy=never -m gpt-5.4
+cat <<'DEVENDOF' | codex exec -c approval_policy=never -s workspace-write -m gpt-5.4
 
 Continue working according to the WORKFLOW_INSTRUCTIONS below.
 
@@ -174,11 +175,19 @@ DEVENDOF
 ```
 
 **Codex-specific notes:**
+- Default sandbox: `-s workspace-write` (allows git clone → modify → push; respects `codex_sandbox` in MAIN.md)
 - Use `-c approval_policy=never` (NOT `--approval-policy`)
 - Prompt via stdin (NOT as CLI argument — avoids shell escaping issues)
 - `-m gpt-5.4` is default; use `-m gpt-5.5` for stricter review rounds
 - Non-fatal errors: "rollout items" warning at end is safe to ignore
 - Full reference: load `references/codex-cli.md`
+
+**Sandbox modes** (set `codex_sandbox` in MAIN.md frontmatter):
+| Mode | Codex flag | Git clone/modify/push? | When |
+|------|-----------|----------------------|------|
+| `readonly` | `-s read-only` | ❌ No writes | Read-only analysis, code review |
+| `workspace-write` | `-s workspace-write` | ✅ Full git workflow | Default — coding tasks that modify files |
+| `danger-full-access` | `-s danger-full-access` | ✅ Unrestricted | Trusted environments only |
 
 #### Engine: `hermes` (default) — delegate_task
 
